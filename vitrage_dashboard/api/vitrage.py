@@ -26,6 +26,7 @@ https://docs.openstack.org/horizon/latest/contributor/tutorials/plugin.html
 from horizon.utils.memoized import memoized  # noqa
 from keystoneauth1.identity.generic.token import Token
 from keystoneauth1.session import Session
+from keystoneauth1.identity import v3
 from openstack_dashboard.api import base
 from vitrageclient import client as vitrage_client
 from contrib import action_manager
@@ -37,52 +38,70 @@ LOG = logging.getLogger(__name__)
 
 @memoized
 def vitrageclient(request, password=None):
-    # endpoint = base.url_for(request, 'identity')
-    # token_id = request.user.token.id
-    # tenant_name = request.user.tenant_name
-    # project_domain_id = request.user.token.project.get('domain_id', 'Default')
-    # auth = Token(auth_url=endpoint, token=token_id,
-    #              project_name=tenant_name,
-    #              project_domain_id=project_domain_id)
+    endpoint = base.url_for(request, 'identity')
+    token_id = request.user.token.id
+    tenant_name = request.user.tenant_name
+    project_domain_id = request.user.token.project.get('domain_id', 'Default')
+    auth = Token(auth_url=endpoint, token=token_id,
+                 project_name=tenant_name,
+                 project_domain_id=project_domain_id)
+    session = Session(auth=auth, timeout=600)
+    return vitrage_client.Client('1', session)
 
-    authlist = []
-    sessionlist = []
+def mec_client(request):
     clientlist = []
+    meclist = []
+
+    setting = ConfigParser.ConfigParser()
+    setting.read('/opt/stack/mecsetting/setting.conf')
+    if setting.has_section('Default'):
+        if setting.has_option('Default', 'meclist'):
+            conf_actions = setting.get('Default', 'meclist').split(',')
+            meclist = conf_actions
+            for section in conf_actions:
+                if setting.has_section(section):
+                    option_list = setting.options(section)
+                    print(option_list)
+                    auth_url = ""
+                    user_name = ""
+                    password = ""
+                    project_name = ""
+                    project_domain = ""
+                    user_domain = ""
+
+                    for pro in option_list :
+                        if 'auth_url' == pro :
+                            auth_url = setting.get(section,pro)
+                        elif 'user_name' == pro :
+                            user_name = setting.get(section,pro)
+                        elif 'password' == pro :
+                            password = setting.get(section,pro)
+                        elif 'project_name' == pro :
+                            project_name = setting.get(section,pro)
+                        elif 'project_domain_name' == pro :
+                            project_domain = setting.get(section,pro)
+                        elif 'user_domain_name' == pro :
+                            user_domain = setting.get(section,pro)
+
+                    v3_auth = v3.Password(auth_url=auth_url + "/v3",
+                                          username=user_name,
+                                          password=password,
+                                          project_name=project_name,
+                                          project_domain_name=project_domain,
+                                          user_domain_name=user_domain)
+
+                    v3_ses = Session(auth=v3_auth)
+                    auth_token = v3_ses.get_token()
+
+                    auth = Token(auth_url=auth_url,
+                                  token=auth_token,
+                                  project_name=project_name,
+                                  project_domain_id=project_domain)
+                    session = Session(auth=auth, timeout=600)
+                    clientlist.append(vitrage_client.Client('1', session))
 
 
-    auth1 = Token(auth_url=unicode('http://192.168.11.11/identity'),
-                  token=unicode('gAAAAABbofETUf1zFWRqv7RI3jD0k40LwnCu_rpQCYQ6lvVNf1W-AFLHXC_wet0tCrQSyXshKBug5JhL3DU7omoM70Ci5SnvkEGMclwu_CueooCgaq0xBZ4s43sxqwZPLxYYz22_KvEo4iYPchZna-OV1ZQtUzDZ_UB9KEJir98cX9CpDUUy-Y0'),
-                 project_name=unicode('admin'),
-                 project_domain_id=unicode('default'))
-    auth2 = Token(auth_url=unicode('http://192.168.11.101/identity'), token=unicode(
-        'gAAAAABbofEc1hPz0el-ZQzCac2thdT5Ln81OO0XT1Rclcr9DRKRBIOgI36Iq07buDNCuPwIzVG9LvnNGXfLL8i3pkCvdfv8w14905cqnRDFkc_C2EeRQt6gwmpiiLJFOhfwI-9FZf_3mdWIn9HIWwVCmPKGC3-Dr9-GkVJ3du0rA3dAsoGhHv8'),
-                 project_name=unicode('admin'),
-                 project_domain_id=unicode('default'))
-    auth3 = Token(auth_url=unicode('http://192.168.11.201/identity'), token=unicode(
-        'gAAAAABbofEn1bsjmxnuC3DJL9uXqyWlXBscq8FbzTUwKroPRCQjFCbHXVUp7UN-XxGPWXV2iHPUqvtvxicXwZ_fifDOZNhDEyrPt6B7NircJeOPobO6r0gixYcRTQwEFwLWPfx_TcLJJm5ZRyRtqf9FGVjdddClTgomb4mPpCCnTm3Mj6Eszx0'),
-                 project_name=unicode('admin'),
-                 project_domain_id=unicode('default'))
-
-    authlist.append(auth1)
-    authlist.append(auth2)
-    authlist.append(auth3)
-
-
-    session1 = Session(auth=authlist[0], timeout=600)
-    session2 = Session(auth=authlist[1], timeout=600)
-    session3 = Session(auth=authlist[2], timeout=600)
-
-    sessionlist.append(session1)
-    sessionlist.append(session2)
-    sessionlist.append(session3)
-
-    clientlist.append(vitrage_client.Client('1', sessionlist[0]))
-    clientlist.append(vitrage_client.Client('1', sessionlist[1]))
-    clientlist.append(vitrage_client.Client('1', sessionlist[2]))
-
-
-
-    return clientlist
+    return clientlist,meclist
 
 
 def topology(request, query=None, graph_type='tree', all_tenants='false',
@@ -94,22 +113,20 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
     LOG.info("--------- CALLING VITRAGE_CLIENT --------root %s", str(root))
     LOG.info("--------- CALLING VITRAGE_CLIENT --------limit %s", str(limit))
 
-    xlist = []
-    x1 = vitrageclient(request)
-
-    tmpx0=x1[0].topology.get(query=query,
+    mecclient,meclist = mec_client(request)
+    tmpx0=mecclient[0].topology.get(query=query,
                        graph_type=graph_type,
                        all_tenants=all_tenants,
                        root=root,
                        limit=limit)
 
-    tmpx1 = x1[1].topology.get(query=query,
+    tmpx1 = mecclient[1].topology.get(query=query,
                                graph_type=graph_type,
                                all_tenants=all_tenants,
                                root=root,
                                limit=limit)
 
-    tmpx2 = x1[2].topology.get(query=query,
+    tmpx2 = mecclient[2].topology.get(query=query,
                                graph_type=graph_type,
                                all_tenants=all_tenants,
                                root=root,
@@ -335,9 +352,6 @@ def actions(request, action, nodetype):
     return result
 
 def action_request(request, action, requestdict):
-    print("############################################ request",request)
-    print("############################################ aciotn", action)
-    print("############################################ requestdict", requestdict)
     endpoint = base.url_for(request, 'identity')
     token_id = request.user.token.id
     tenant_name = request.user.tenant_name
