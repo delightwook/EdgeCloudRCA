@@ -135,17 +135,23 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
     cluster_index = 0
     max_num =0
 
+    print("##########################################")
+    print("tmpx2 ",tmpx2['links'])
+
+
 #### GET cluster index
     for i in tmpx0['nodes'] :
         global cluster_index
-        if i['id'] == 'OpenStack Cluster' :
-            cluster_index = i['graph_index']
+        if i['vitrage_category'] != 'ALARM':
+            if i['id'] == 'OpenStack Cluster' :
+                cluster_index = i['graph_index']
 
 #### GET MAX NUM
     for i in tmpx0['nodes']:
         global max_num
-        if max_num < i['graph_index']:
-            max_num = i['graph_index']
+        if i['vitrage_category'] != 'ALARM':
+            if max_num < i['graph_index']:
+                max_num = i['graph_index']
 
 
 ####### GET after cluster index
@@ -228,7 +234,7 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
         tmpx0['links'].append(tmpx1['links'][j])
 
 ### SET TMPX2 link & nodes
-    max_num += cnt
+    max_num +=( cnt-1)
     tmpx2_cluster = 0
     for i in tmpx2['nodes']:
         global tmpx2_cluster
@@ -236,9 +242,13 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
             tmpx2_cluster = i['graph_index']
 
     tmpx2_list = []
+    clu=False
     for i in tmpx2['nodes'] :
-        global tmpx2_list,tmpx2_cluster
-        if i['graph_index'] > tmpx2_cluster:
+        global tmpx2_list,tmpx2_cluster,clu
+
+        if i['vitrage_category'] == 'openstack.cluster':
+            clu = True
+        elif clu == True :
             tmpx2_list.append(i)
 
 
@@ -247,59 +257,122 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
         tmpx2['links'][j]['t_cha'] = True
 
     for i in tmpx2['nodes']:
-        global max_num,cluster_index,cnt,tmpx2_list
-        if i['id'] != 'OpenStack Cluster' :
-            cnt+=1
-
+        global max_num,cluster_index,cnt,tmpx2_list,tmpx2_cluster
         for j in range(len(tmpx2['links'])):
-
-            if tmpx2['links'][j]['source'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
-                if  i not in tmpx2_list:
-                    tmpx2['links'][j]['source'] += max_num
-                    tmpx2['links'][j]['s_cha'] = False
-                else:
-                    tmpx2['links'][j]['source'] += (max_num -1)
-                    tmpx2['links'][j]['s_cha'] = False
-
-            elif tmpx2['links'][j]['source'] == i['graph_index'] and i['id'] == 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
+            if  tmpx2['links'][j]['source'] == tmpx2_cluster and tmpx2['links'][j]['s_cha'] == True:
                 tmpx2['links'][j]['source'] = cluster_index
                 tmpx2['links'][j]['s_cha'] = False
 
-
-            if tmpx2['links'][j]['target'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['t_cha'] == True:
-                if  i not in tmpx2_list:
-                    tmpx2['links'][j]['target'] += max_num
+            if tmpx2['links'][j]['target'] == tmpx2_cluster and tmpx2['links'][j]['t_cha'] == True:
+                    tmpx2['links'][j]['target'] = cluster_index
                     tmpx2['links'][j]['t_cha'] = False
-                else:
-                    tmpx2['links'][j]['target'] += (max_num -1)
-                    tmpx2['links'][j]['t_cha'] = False
-            elif tmpx2['links'][j]['target'] == i['graph_index'] and i['id'] == 'OpenStack Cluster'and tmpx2['links'][j]['t_cha'] == True:
-                tmpx2['links'][j]['target'] = cluster_index
-                tmpx2['links'][j]['t_cha'] = False
+            else:
+                if tmpx2['links'][j]['s_cha'] == True:
+                    if  i not in tmpx2_list:
+                        tmpx2['links'][j]['source'] += max_num
+                        tmpx2['links'][j]['s_cha'] = False
+                    else:
+                        tmpx2['links'][j]['source'] += (max_num -1)
+                        tmpx2['links'][j]['s_cha'] = False
 
-        if i not in tmpx2_list:
-            i['graph_index'] += max_num
-        else:
-            i['graph_index'] += (max_num - 1)
+                if tmpx2['links'][j]['t_cha'] == True:
+                    if  i not in tmpx2_list:
+                         tmpx2['links'][j]['target'] += max_num
+                         tmpx2['links'][j]['t_cha'] = False
+                    else:
+                         tmpx2['links'][j]['target'] += (max_num -1)
+                         tmpx2['links'][j]['t_cha'] = False
 
-        if i['id'] == 'nova' :
-            i['name'] = 'MEC2_nova'
-            i['id'] = 'MEC2_nova'
 
-        if i['id'] != 'OpenStack Cluster':
-            tmpx0['nodes'].append(i)
+    #
+    # for i in tmpx2['nodes']:
+    #     global max_num,cluster_index,cnt,tmpx2_list
+    #     for j in range(len(tmpx2['links'])):
+    #         if i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
+    #             if i['vitrage_category'] == 'ALARM':
+    #                 print("Dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+    #             if  i not in tmpx2_list:
+    #                 tmpx2['links'][j]['source'] += max_num
+    #                 tmpx2['links'][j]['s_cha'] = False
+    #             else:
+    #                 tmpx2['links'][j]['source'] += (max_num -1)
+    #                 tmpx2['links'][j]['s_cha'] = False
+    #         elif i['id'] == 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
+    #             tmpx2['links'][j]['source'] = cluster_index
+    #             tmpx2['links'][j]['s_cha'] = False
+    #             continue
+    #
+    #         if i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['t_cha'] == True:
+    #             if  i not in tmpx2_list:
+    #                  tmpx2['links'][j]['target'] += max_num
+    #                  tmpx2['links'][j]['t_cha'] = False
+    #             else:
+    #                  tmpx2['links'][j]['target'] += (max_num -1)
+    #                  tmpx2['links'][j]['t_cha'] = False
+    #         elif i['id'] == 'OpenStack Cluster'and tmpx2['links'][j]['t_cha'] == True:
+    #             tmpx2['links'][j]['target'] = cluster_index
+    #             tmpx2['links'][j]['t_cha'] = False
+    #             if i['vitrage_category'] == 'ALARM':
+    #                 print("Dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+
+    # for i in tmpx2['nodes']:
+    #     global max_num,cluster_index,cnt,tmpx2_list
+    #     if i['vitrage_category'] != 'ALARM' :
+    #         for j in range(len(tmpx2['links'])):
+    #             if i['vitrage_category'] != 'ALARM':
+    #                 if tmpx2['links'][j]['source'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
+    #                     if  i not in tmpx2_list:
+    #                         tmpx2['links'][j]['source'] += max_num
+    #                         tmpx2['links'][j]['s_cha'] = False
+    #                     else:
+    #                         tmpx2['links'][j]['source'] += (max_num -1)
+    #                         tmpx2['links'][j]['s_cha'] = False
+    #
+    #                 elif tmpx2['links'][j]['source'] == i['graph_index'] and i['id'] == 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
+    #                     tmpx2['links'][j]['source'] = cluster_index
+    #                     tmpx2['links'][j]['s_cha'] = False
+    #
+    #                 if tmpx2['links'][j]['target'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['t_cha'] == True:
+    #                     if  i not in tmpx2_list:
+    #                         tmpx2['links'][j]['target'] += max_num
+    #                         tmpx2['links'][j]['t_cha'] = False
+    #                     else:
+    #                         tmpx2['links'][j]['target'] += (max_num -1)
+    #                         tmpx2['links'][j]['t_cha'] = False
+    #                 elif tmpx2['links'][j]['target'] == i['graph_index'] and i['id'] == 'OpenStack Cluster'and tmpx2['links'][j]['t_cha'] == True:
+    #                      tmpx2['links'][j]['target'] = cluster_index
+    #                      tmpx2['links'][j]['t_cha'] = False
+    #             elif i['vitrage_category'] == 'ALARM' :
+    #                 if tmpx2['links'][j]['s_cha'] == True:
+    #                     if i not in tmpx2_list:
+    #                         tmpx2['links'][j]['source'] += max_num
+    #                         tmpx2['links'][j]['s_cha'] = False
+    #                     else:
+    #                         tmpx2['links'][j]['source'] += (max_num - 1)
+    #                         tmpx2['links'][j]['s_cha'] = False
+    #
+    #                 if tmpx2['links'][j]['t_cha'] == True:
+    #                     if i not in tmpx2_list:
+    #                         tmpx2['links'][j]['target'] += max_num
+    #                         tmpx2['links'][j]['t_cha'] = False
+    #                     else:
+    #                         tmpx2['links'][j]['target'] += (max_num - 1)
+    #                         tmpx2['links'][j]['t_cha'] = False
 
     for i in tmpx2['nodes']:
         global tmpx2_list
-
-        if i not in tmpx2_list:
-            i['graph_index'] += max_num
-        else:
-            i['graph_index'] += (max_num - 1)
+        if i['vitrage_category'] == 'ALARM':
+             pass
+        elif i['vitrage_category'] != 'ALARM' :
+            if i not in tmpx2_list:
+                i['graph_index'] += max_num
+            else:
+                i['graph_index'] += (max_num - 1)
 
         if i['id'] == 'nova':
-            i['name'] = 'MEC1_nova'
-            i['id'] = 'MEC1_nova'
+            i['name'] = 'MEC2_nova'
+            i['id'] = 'MEC2_nova'
+
         if i['id'] != 'OpenStack Cluster':
             tmpx0['nodes'].append(i)
 
@@ -310,8 +383,6 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
     for j in range(len(tmpx2['links'])):
         tmpx0['links'].append(tmpx2['links'][j])
 
-    print(" RESPONSE ",tmpx0)
-    print(" RESPONSE ", tmpx0)
     max_num = 0
     return tmpx0
 
@@ -363,6 +434,7 @@ def action_request(request, action, requestdict):
     session = Session(auth=auth, timeout=600)
     result = action_manager.ActionManager.execute(session, str(action),requestdict)
     return result
+
 def action_setting(request):
     setting = ConfigParser.ConfigParser()
     setting.read('/etc/vitrage-dashboard/setting.conf')
