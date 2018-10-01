@@ -103,6 +103,8 @@ def mec_client(request):
 
     return clientlist,meclist
 
+def getMECRca(request):
+    pass
 
 def topology(request, query=None, graph_type='tree', all_tenants='false',
              root=None, limit=None):
@@ -114,278 +116,124 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
     LOG.info("--------- CALLING VITRAGE_CLIENT --------limit %s", str(limit))
 
     mecclient,meclist = mec_client(request)
-    tmpx0=mecclient[0].topology.get(query=query,
-                       graph_type=graph_type,
-                       all_tenants=all_tenants,
-                       root=root,
-                       limit=limit)
-
-    tmpx1 = mecclient[1].topology.get(query=query,
-                               graph_type=graph_type,
-                               all_tenants=all_tenants,
-                               root=root,
-                               limit=limit)
-
-    tmpx2 = mecclient[2].topology.get(query=query,
-                               graph_type=graph_type,
-                               all_tenants=all_tenants,
-                               root=root,
-                               limit=limit)
+    print("####################### MEC LIST ", meclist)
 
     cluster_index = 0
-    max_num =0
+    now_cluster = 0
 
-    print("##########################################")
-    print("tmpx2 ",tmpx2['links'])
+    entity_num = 0
+    link_num = 0
+    first = True
+    second = False
+    first_client = None
+    rca_cnt = -1
+    client_cnt = -1
 
+    for client in mecclient :
+        global first,first_client,rca_cnt,now_cluster,client_cnt,cluster_index, entity_num,second,link_num
+        rca_cnt += 1
+        client_cnt += 2
+        rcaclient = client.topology.get(query=query,
+                               graph_type=graph_type,
+                               all_tenants=all_tenants,
+                               root=root,
+                               limit=limit)
 
-#### GET cluster index
-    for i in tmpx0['nodes'] :
-        global cluster_index
-        if i['vitrage_category'] != 'ALARM':
-            if i['id'] == 'OpenStack Cluster' :
-                cluster_index = i['graph_index']
+        if first == True:
+            first_client = rcaclient
+            ### GET Cluster Index
+            for entity in rcaclient['nodes']:
+                if entity['vitrage_category'] != 'ALARM' :
+                    if entity['id'] == 'OpenStack Cluster':
+                        cluster_index = entity['graph_index']
+                if entity['id'] == 'nova':
+                    entity['name'] = meclist[rca_cnt] + '_nova'
+                    entity['id'] = meclist[rca_cnt] + '_nova'
+            first = False
+            second = True
+            entity_num += (len(rcaclient['nodes']))
+            link_num += (len(rcaclient['nodes']))
+        else :
+            ####### SET Other RCA ENTITY
+            now_cluster = 0
+            t_now_entitylist = []
+            s_now_entitylist = []
+            now_entitylist = []
+            clu = False
 
-#### GET MAX NUM
-    for i in tmpx0['nodes']:
-        global max_num
-        if i['vitrage_category'] != 'ALARM':
-            if max_num < i['graph_index']:
-                max_num = i['graph_index']
+            ####### SET now RCA entity list
+            for entity in rcaclient['nodes']:
+                global clu,cluster_index
+                if entity['id'] == 'OpenStack Cluster':
+                    now_cluster = entity['graph_index']
+                    clu = True
+                if clu == True and entity['id'] != 'OpenStack Cluster':
+                    s_now_entitylist.append(entity['id'])
+                    t_now_entitylist.append(entity['id'])
+                    now_entitylist.append(entity['id'])
+            for j in range(len(rcaclient['links'])):
+                rcaclient['links'][j]['s_cha'] = True
+                rcaclient['links'][j]['t_cha'] = True
 
+            for j in range(len(rcaclient['links'])):
+                if rcaclient['links'][j]['source'] == now_cluster and \
+                                rcaclient['links'][j]['s_cha'] == True:
+                    rcaclient['links'][j]['source'] = cluster_index
+                    rcaclient['links'][j]['s_cha'] = False
 
-####### GET after cluster index
-
-    max_num += 1
-    cnt = 0
-    tmpx1_cluster = 0
-    for i in tmpx1['nodes']:
-        global tmpx1_cluster
-        if i['id'] == 'OpenStack Cluster':
-            tmpx1_cluster = i['graph_index']
-
-    tmpx1_list = []
-    for i in tmpx1['nodes'] :
-        global tmpx1_list,tmpx1_cluster
-        if i['graph_index'] > tmpx1_cluster:
-            tmpx1_list.append(i)
-
-    for j in range(len(tmpx1['links'])):
-        tmpx1['links'][j]['s_cha'] = True
-        tmpx1['links'][j]['t_cha'] = True
-
-
-    for i in tmpx1['nodes']:
-        global max_num,cluster_index,cnt,tmpx1_list
-        if i['id'] != 'OpenStack Cluster' :
-            cnt+=1
-
-        for j in range(len(tmpx1['links'])):
-            if tmpx1['links'][j]['source'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and \
-                            tmpx1['links'][j]['s_cha'] == True:
-                if  i in tmpx1_list:
-                    tmpx1['links'][j]['source'] += (max_num -1 )
-                    tmpx1['links'][j]['s_cha'] = False
-                else:
-                    tmpx1['links'][j]['source'] += max_num
-                    tmpx1['links'][j]['s_cha'] = False
-
-            elif tmpx1['links'][j]['source'] == i['graph_index'] and i['id'] == 'OpenStack Cluster' and \
-                            tmpx1['links'][j]['s_cha'] == True:
-                tmpx1['links'][j]['source'] = cluster_index
-                tmpx1['links'][j]['s_cha'] = False
-
-
-            if tmpx1['links'][j]['target'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and \
-                            tmpx1['links'][j]['t_cha'] == True:
-                if  i in tmpx1_list:
-                    tmpx1['links'][j]['target'] += (max_num-1)
-                    tmpx1['links'][j]['t_cha'] = False
-                else:
-                    tmpx1['links'][j]['target'] += max_num
-                    tmpx1['links'][j]['t_cha'] = False
-            elif tmpx1['links'][j]['target'] == i['graph_index'] and i['id'] == 'OpenStack Cluster' and \
-                            tmpx1['links'][j]['t_cha'] == True :
-                tmpx1['links'][j]['target'] = cluster_index
-                tmpx1['links'][j]['t_cha'] = False
-
-
-
-
-    for i in tmpx1['nodes']:
-        global tmpx1_list
-
-        if i not in tmpx1_list:
-            i['graph_index'] += max_num
-        else:
-            i['graph_index'] += (max_num - 1)
-
-        if i['id'] == 'nova':
-            i['name'] = 'MEC1_nova'
-            i['id'] = 'MEC1_nova'
-        if i['id'] != 'OpenStack Cluster':
-            tmpx0['nodes'].append(i)
-
-    for j in range(len(tmpx1['links'])):
-        del tmpx1['links'][j]['s_cha']
-        del tmpx1['links'][j]['t_cha']
-
-    for j in range(len(tmpx1['links'])):
-        tmpx0['links'].append(tmpx1['links'][j])
-
-### SET TMPX2 link & nodes
-    max_num +=( cnt-1)
-    tmpx2_cluster = 0
-    for i in tmpx2['nodes']:
-        global tmpx2_cluster
-        if i['id'] == 'OpenStack Cluster':
-            tmpx2_cluster = i['graph_index']
-
-    tmpx2_list = []
-    clu=False
-    for i in tmpx2['nodes'] :
-        global tmpx2_list,tmpx2_cluster,clu
-
-        if i['vitrage_category'] == 'openstack.cluster':
-            clu = True
-        elif clu == True :
-            tmpx2_list.append(i)
-
-
-    for j in range(len(tmpx2['links'])):
-        tmpx2['links'][j]['s_cha'] = True
-        tmpx2['links'][j]['t_cha'] = True
-
-    for i in tmpx2['nodes']:
-        global max_num,cluster_index,cnt,tmpx2_list,tmpx2_cluster
-        for j in range(len(tmpx2['links'])):
-            if  tmpx2['links'][j]['source'] == tmpx2_cluster and tmpx2['links'][j]['s_cha'] == True:
-                tmpx2['links'][j]['source'] = cluster_index
-                tmpx2['links'][j]['s_cha'] = False
-
-            if tmpx2['links'][j]['target'] == tmpx2_cluster and tmpx2['links'][j]['t_cha'] == True:
-                    tmpx2['links'][j]['target'] = cluster_index
-                    tmpx2['links'][j]['t_cha'] = False
-            else:
-                if tmpx2['links'][j]['s_cha'] == True:
-                    if  i not in tmpx2_list:
-                        tmpx2['links'][j]['source'] += max_num
-                        tmpx2['links'][j]['s_cha'] = False
+                if rcaclient['links'][j]['target'] == now_cluster \
+                        and rcaclient['links'][j]['t_cha'] == True:
+                    rcaclient['links'][j]['target'] = cluster_index
+                    rcaclient['links'][j]['t_cha'] = False
+                if rcaclient['links'][j]['source'] != now_cluster and \
+                                rcaclient['links'][j]['s_cha'] == True:
+                    if rcaclient['links'][j]['source'] < now_cluster:
+                        rcaclient['links'][j]['source'] += link_num
+                        rcaclient['links'][j]['s_cha'] = False
                     else:
-                        tmpx2['links'][j]['source'] += (max_num -1)
-                        tmpx2['links'][j]['s_cha'] = False
+                        rcaclient['links'][j]['source'] += (link_num-1)
+                        rcaclient['links'][j]['s_cha'] = False
 
-                if tmpx2['links'][j]['t_cha'] == True:
-                    if  i not in tmpx2_list:
-                         tmpx2['links'][j]['target'] += max_num
-                         tmpx2['links'][j]['t_cha'] = False
+                if rcaclient['links'][j]['target'] != now_cluster and \
+                            rcaclient['links'][j]['t_cha'] == True:
+                    if rcaclient['links'][j]['target'] < now_cluster:
+                        rcaclient['links'][j]['target'] += link_num
+                        rcaclient['links'][j]['t_cha'] = False
+                    else :
+                        rcaclient['links'][j]['target'] += (link_num-1)
+                        rcaclient['links'][j]['t_cha'] = False
+
+            ####### ADD RCA tree at First Tree
+            for entity in rcaclient['nodes']:
+                if entity['vitrage_category'] == 'ALARM':
+                    pass
+                elif entity['vitrage_category'] != 'ALARM':
+                    if entity['id'] not in now_entitylist:
+                        entity['graph_index'] += entity_num
                     else:
-                         tmpx2['links'][j]['target'] += (max_num -1)
-                         tmpx2['links'][j]['t_cha'] = False
+                        entity['graph_index'] += entity_num -1
 
+                if entity['id'] == 'nova':
+                    entity['name'] = meclist[rca_cnt] + '_nova'
+                    entity['id'] = meclist[rca_cnt] + '_nova'
 
-    #
-    # for i in tmpx2['nodes']:
-    #     global max_num,cluster_index,cnt,tmpx2_list
-    #     for j in range(len(tmpx2['links'])):
-    #         if i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
-    #             if i['vitrage_category'] == 'ALARM':
-    #                 print("Dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
-    #             if  i not in tmpx2_list:
-    #                 tmpx2['links'][j]['source'] += max_num
-    #                 tmpx2['links'][j]['s_cha'] = False
-    #             else:
-    #                 tmpx2['links'][j]['source'] += (max_num -1)
-    #                 tmpx2['links'][j]['s_cha'] = False
-    #         elif i['id'] == 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
-    #             tmpx2['links'][j]['source'] = cluster_index
-    #             tmpx2['links'][j]['s_cha'] = False
-    #             continue
-    #
-    #         if i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['t_cha'] == True:
-    #             if  i not in tmpx2_list:
-    #                  tmpx2['links'][j]['target'] += max_num
-    #                  tmpx2['links'][j]['t_cha'] = False
-    #             else:
-    #                  tmpx2['links'][j]['target'] += (max_num -1)
-    #                  tmpx2['links'][j]['t_cha'] = False
-    #         elif i['id'] == 'OpenStack Cluster'and tmpx2['links'][j]['t_cha'] == True:
-    #             tmpx2['links'][j]['target'] = cluster_index
-    #             tmpx2['links'][j]['t_cha'] = False
-    #             if i['vitrage_category'] == 'ALARM':
-    #                 print("Dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+                if entity['id'] != 'OpenStack Cluster':
+                    first_client['nodes'].append(entity)
 
-    # for i in tmpx2['nodes']:
-    #     global max_num,cluster_index,cnt,tmpx2_list
-    #     if i['vitrage_category'] != 'ALARM' :
-    #         for j in range(len(tmpx2['links'])):
-    #             if i['vitrage_category'] != 'ALARM':
-    #                 if tmpx2['links'][j]['source'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
-    #                     if  i not in tmpx2_list:
-    #                         tmpx2['links'][j]['source'] += max_num
-    #                         tmpx2['links'][j]['s_cha'] = False
-    #                     else:
-    #                         tmpx2['links'][j]['source'] += (max_num -1)
-    #                         tmpx2['links'][j]['s_cha'] = False
-    #
-    #                 elif tmpx2['links'][j]['source'] == i['graph_index'] and i['id'] == 'OpenStack Cluster' and tmpx2['links'][j]['s_cha'] == True:
-    #                     tmpx2['links'][j]['source'] = cluster_index
-    #                     tmpx2['links'][j]['s_cha'] = False
-    #
-    #                 if tmpx2['links'][j]['target'] == i['graph_index'] and i['id'] != 'OpenStack Cluster' and tmpx2['links'][j]['t_cha'] == True:
-    #                     if  i not in tmpx2_list:
-    #                         tmpx2['links'][j]['target'] += max_num
-    #                         tmpx2['links'][j]['t_cha'] = False
-    #                     else:
-    #                         tmpx2['links'][j]['target'] += (max_num -1)
-    #                         tmpx2['links'][j]['t_cha'] = False
-    #                 elif tmpx2['links'][j]['target'] == i['graph_index'] and i['id'] == 'OpenStack Cluster'and tmpx2['links'][j]['t_cha'] == True:
-    #                      tmpx2['links'][j]['target'] = cluster_index
-    #                      tmpx2['links'][j]['t_cha'] = False
-    #             elif i['vitrage_category'] == 'ALARM' :
-    #                 if tmpx2['links'][j]['s_cha'] == True:
-    #                     if i not in tmpx2_list:
-    #                         tmpx2['links'][j]['source'] += max_num
-    #                         tmpx2['links'][j]['s_cha'] = False
-    #                     else:
-    #                         tmpx2['links'][j]['source'] += (max_num - 1)
-    #                         tmpx2['links'][j]['s_cha'] = False
-    #
-    #                 if tmpx2['links'][j]['t_cha'] == True:
-    #                     if i not in tmpx2_list:
-    #                         tmpx2['links'][j]['target'] += max_num
-    #                         tmpx2['links'][j]['t_cha'] = False
-    #                     else:
-    #                         tmpx2['links'][j]['target'] += (max_num - 1)
-    #                         tmpx2['links'][j]['t_cha'] = False
+            for j in range(len(rcaclient['links'])):
+                del rcaclient['links'][j]['s_cha']
+                del rcaclient['links'][j]['t_cha']
 
-    for i in tmpx2['nodes']:
-        global tmpx2_list
-        if i['vitrage_category'] == 'ALARM':
-             pass
-        elif i['vitrage_category'] != 'ALARM' :
-            if i not in tmpx2_list:
-                i['graph_index'] += max_num
-            else:
-                i['graph_index'] += (max_num - 1)
+            for j in range(len(rcaclient['links'])):
+                first_client['links'].append(rcaclient['links'][j])
 
-        if i['id'] == 'nova':
-            i['name'] = 'MEC2_nova'
-            i['id'] = 'MEC2_nova'
-
-        if i['id'] != 'OpenStack Cluster':
-            tmpx0['nodes'].append(i)
-
-    for j in range(len(tmpx2['links'])):
-        del tmpx2['links'][j]['s_cha']
-        del tmpx2['links'][j]['t_cha']
-
-    for j in range(len(tmpx2['links'])):
-        tmpx0['links'].append(tmpx2['links'][j])
-
-    max_num = 0
-    return tmpx0
-
+            entity_num += (len(rcaclient['nodes'])-1)
+            if second == True:
+                link_num += (len(rcaclient['nodes'])-1)
+                print("&+******************* link_num",link_num)
+                second = False
+    rca_cnt = -1
+    return first_client
 
 def alarms(request, vitrage_id='all', all_tenants='false'):
     return vitrageclient(request).alarm.list(vitrage_id=vitrage_id,
