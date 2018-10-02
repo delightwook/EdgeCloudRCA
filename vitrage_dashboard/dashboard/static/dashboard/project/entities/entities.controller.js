@@ -49,6 +49,21 @@
         });
 
         $scope.$on('graphItemClicked', function (event, data) {
+            vitrageActionSrv.getSetting()
+            .then(
+                function success(result) {
+                    referenceUrl = result.data[1];
+
+                },
+                function error(result) {
+                    console.log('Reference URL Error:', result);
+                });
+
+            if(referenceUrl.hasOwnProperty(data.vitrage_type)){
+                data.Vitrage_reference = referenceUrl[data.vitrage_type];
+            }else{
+                data.Vitrage_reference = 'No reference';
+            }
             _this.selectedItem = data;
             event.stopPropagation();
             $scope.$digest();
@@ -61,7 +76,6 @@
             .then(
                 function success(result) {
                 _this.actionList = result.data[0];
-                console.log(" ACTIONLIST :::: ",_this.actionList);
                 new_data.url = result.data[1];
                 },
                 function error(result) {
@@ -131,7 +145,6 @@
                             if (node.vitrage_type === 'heat.stack') {
                                 heats.push({name: node.name, vitrageId: node.vitrage_id});
                             }
-                            console.log("############ node ",node)
                         });
 
                         $scope.heats = heats;
@@ -154,8 +167,6 @@
                         links = res.data.links;
 
                     _.each(links, function (link) {
-                        console.log(" ##!@#!@#!@#!@#!@# links",link);
-                        console.log(" ##!@#!@#!@#!@#!@# nodes",nodes);
                         link.source = nodes[link.source];
                         link.target = nodes[link.target];
                     });

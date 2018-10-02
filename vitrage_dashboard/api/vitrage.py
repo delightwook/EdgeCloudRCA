@@ -33,8 +33,7 @@ from contrib import action_manager
 
 import ConfigParser
 import logging
-import uuid
-
+import copy
 LOG = logging.getLogger(__name__)
 
 
@@ -226,16 +225,12 @@ def getmecrca(request, query=None, graph_type='tree', all_tenants='false',
 
 
 def setalarmcount(request, all_tenants='false'):
-    # counts1 = vitrageclient(request).alarm.count(all_tenants=all_tenants)
-    # counts1['NA'] = counts1.get("N/A")
-
     mecclient,meclist = mec_client(request)
     severe = 0
     critical = 0
     ok = 0
     warning = 0
     na = 0
-    na2 = 0
     client_first = True
     counts1 = None
 
@@ -256,6 +251,35 @@ def setalarmcount(request, all_tenants='false'):
     counts1['N/A'] = na
     counts1['NA'] = na
     return counts1
+def getmecalarm(request, vitrage_id='all', all_tenants='false'):
+    mecclient,meclist = mec_client(request)
+    alarmlist = []
+
+    for client in mecclient:
+        rcaalarm = client.alarm.list(vitrage_id=vitrage_id,
+                                     all_tenants=all_tenants)
+
+        for alarm in rcaalarm:
+            alarmlist.append(alarm)
+    return alarmlist
+
+def getrca(request, alarm_id, all_tenants='false'):
+    mecclient,meclist = mec_client(request)
+    rcatmp = None
+
+    for client in mecclient:
+        rcaalarm = client.alarm.list(vitrage_id='all',
+                                     all_tenants=all_tenants)
+        print("RCAALARM ",rcaalarm)
+        print("alarm_id",alarm_id)
+
+        for alarm in rcaalarm:
+            if alarm_id == alarm['vitrage_id']:
+                rcatmp = client.rca.get(alarm_id=alarm_id,
+                                    all_tenants=all_tenants)
+    return rcatmp
+
+
 
 def topology(request, query=None, graph_type='tree', all_tenants='false',
              root=None, limit=None):
@@ -270,22 +294,26 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
     return rca_clients
 
 def alarms(request, vitrage_id='all', all_tenants='false'):
-    return vitrageclient(request).alarm.list(vitrage_id=vitrage_id,
-                                             all_tenants=all_tenants)
+
+    alarmlist = getmecalarm(request, vitrage_id='all', all_tenants='false')
+    return alarmlist
+
+    # return vitrageclient(request).alarm.list(vitrage_id=vitrage_id,
+    #                                          all_tenants=all_tenants)
 
 
 def alarm_counts(request, all_tenants='false'):
     # counts1 = vitrageclient(request).alarm.count(all_tenants=all_tenants)
     # counts1['NA'] = counts1.get("N/A")
-
-
     counts1 = setalarmcount(request,all_tenants = all_tenants)
     return counts1
 
 
 def rca(request, alarm_id, all_tenants='false'):
-    return vitrageclient(request).rca.get(alarm_id=alarm_id,
-                                          all_tenants=all_tenants)
+    rcavalue = getrca(request, alarm_id, all_tenants='false')
+    return rcavalue
+    # return vitrageclient(request).rca.get(alarm_id=alarm_id,
+    #                                       all_tenants=all_tenants)
 
 
 def templates(request, template_id='all'):
