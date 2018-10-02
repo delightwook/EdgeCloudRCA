@@ -33,6 +33,8 @@ from contrib import action_manager
 
 import ConfigParser
 import logging
+import uuid
+
 LOG = logging.getLogger(__name__)
 
 
@@ -103,20 +105,9 @@ def mec_client(request):
 
     return clientlist,meclist
 
-def getMECRca(request):
-    pass
-
-def topology(request, query=None, graph_type='tree', all_tenants='false',
+def getmecrca(request, query=None, graph_type='tree', all_tenants='false',
              root=None, limit=None):
-    LOG.info("--------- CALLING VITRAGE_CLIENT ---request %s", str(request))
-    LOG.info("--------- CALLING VITRAGE_CLIENT ---query %s", str(query))
-    LOG.info("------ CALLING VITRAGE_CLIENT --graph_type %s", str(graph_type))
-    LOG.info("---- CALLING VITRAGE_CLIENT --all_tenants %s", str(all_tenants))
-    LOG.info("--------- CALLING VITRAGE_CLIENT --------root %s", str(root))
-    LOG.info("--------- CALLING VITRAGE_CLIENT --------limit %s", str(limit))
-
     mecclient,meclist = mec_client(request)
-    print("####################### MEC LIST ", meclist)
 
     cluster_index = 0
     now_cluster = 0
@@ -134,106 +125,149 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
         rca_cnt += 1
         client_cnt += 2
         rcaclient = client.topology.get(query=query,
-                               graph_type=graph_type,
-                               all_tenants=all_tenants,
-                               root=root,
-                               limit=limit)
+                                        graph_type=graph_type,
+                                        all_tenants=all_tenants,
+                                        root=root,
+                                        limit=limit)
+        if rcaclient :
+            if first == True:
+                first_client = rcaclient
+                ### GET Cluster Index
+                for entity in rcaclient['nodes']:
+                    if entity['vitrage_category'] != 'ALARM' :
+                        if entity['id'] == 'OpenStack Cluster':
+                            cluster_index = entity['graph_index']
+                    if entity['id'] == 'nova':
+                        entity['name'] = meclist[rca_cnt] + '_nova'
+                        entity['id'] = meclist[rca_cnt] + '_nova'
+                first = False
+                second = True
+                entity_num += (len(rcaclient['nodes']))
+                link_num += (len(rcaclient['nodes']))
+            else :
+                ####### SET Other RCA ENTITY
+                now_cluster = 0
+                t_now_entitylist = []
+                s_now_entitylist = []
+                now_entitylist = []
+                clu = False
 
-        if first == True:
-            first_client = rcaclient
-            ### GET Cluster Index
-            for entity in rcaclient['nodes']:
-                if entity['vitrage_category'] != 'ALARM' :
+                ####### SET now RCA entity list
+                for entity in rcaclient['nodes']:
+                    global clu,cluster_index
                     if entity['id'] == 'OpenStack Cluster':
-                        cluster_index = entity['graph_index']
-                if entity['id'] == 'nova':
-                    entity['name'] = meclist[rca_cnt] + '_nova'
-                    entity['id'] = meclist[rca_cnt] + '_nova'
-            first = False
-            second = True
-            entity_num += (len(rcaclient['nodes']))
-            link_num += (len(rcaclient['nodes']))
-        else :
-            ####### SET Other RCA ENTITY
-            now_cluster = 0
-            t_now_entitylist = []
-            s_now_entitylist = []
-            now_entitylist = []
-            clu = False
+                        now_cluster = entity['graph_index']
+                        clu = True
+                    if clu == True and entity['id'] != 'OpenStack Cluster':
+                        s_now_entitylist.append(entity['id'])
+                        t_now_entitylist.append(entity['id'])
+                        now_entitylist.append(entity['id'])
+                for j in range(len(rcaclient['links'])):
+                    rcaclient['links'][j]['s_cha'] = True
+                    rcaclient['links'][j]['t_cha'] = True
 
-            ####### SET now RCA entity list
-            for entity in rcaclient['nodes']:
-                global clu,cluster_index
-                if entity['id'] == 'OpenStack Cluster':
-                    now_cluster = entity['graph_index']
-                    clu = True
-                if clu == True and entity['id'] != 'OpenStack Cluster':
-                    s_now_entitylist.append(entity['id'])
-                    t_now_entitylist.append(entity['id'])
-                    now_entitylist.append(entity['id'])
-            for j in range(len(rcaclient['links'])):
-                rcaclient['links'][j]['s_cha'] = True
-                rcaclient['links'][j]['t_cha'] = True
-
-            for j in range(len(rcaclient['links'])):
-                if rcaclient['links'][j]['source'] == now_cluster and \
-                                rcaclient['links'][j]['s_cha'] == True:
-                    rcaclient['links'][j]['source'] = cluster_index
-                    rcaclient['links'][j]['s_cha'] = False
-
-                if rcaclient['links'][j]['target'] == now_cluster \
-                        and rcaclient['links'][j]['t_cha'] == True:
-                    rcaclient['links'][j]['target'] = cluster_index
-                    rcaclient['links'][j]['t_cha'] = False
-                if rcaclient['links'][j]['source'] != now_cluster and \
-                                rcaclient['links'][j]['s_cha'] == True:
-                    if rcaclient['links'][j]['source'] < now_cluster:
-                        rcaclient['links'][j]['source'] += link_num
-                        rcaclient['links'][j]['s_cha'] = False
-                    else:
-                        rcaclient['links'][j]['source'] += (link_num-1)
+                for j in range(len(rcaclient['links'])):
+                    if rcaclient['links'][j]['source'] == now_cluster and \
+                                    rcaclient['links'][j]['s_cha'] == True:
+                        rcaclient['links'][j]['source'] = cluster_index
                         rcaclient['links'][j]['s_cha'] = False
 
-                if rcaclient['links'][j]['target'] != now_cluster and \
-                            rcaclient['links'][j]['t_cha'] == True:
-                    if rcaclient['links'][j]['target'] < now_cluster:
-                        rcaclient['links'][j]['target'] += link_num
+                    if rcaclient['links'][j]['target'] == now_cluster \
+                            and rcaclient['links'][j]['t_cha'] == True:
+                        rcaclient['links'][j]['target'] = cluster_index
                         rcaclient['links'][j]['t_cha'] = False
-                    else :
-                        rcaclient['links'][j]['target'] += (link_num-1)
-                        rcaclient['links'][j]['t_cha'] = False
+                    if rcaclient['links'][j]['source'] != now_cluster and \
+                                    rcaclient['links'][j]['s_cha'] == True:
+                        if rcaclient['links'][j]['source'] < now_cluster:
+                            rcaclient['links'][j]['source'] += link_num
+                            rcaclient['links'][j]['s_cha'] = False
+                        else:
+                            rcaclient['links'][j]['source'] += (link_num-1)
+                            rcaclient['links'][j]['s_cha'] = False
 
-            ####### ADD RCA tree at First Tree
-            for entity in rcaclient['nodes']:
-                if entity['vitrage_category'] == 'ALARM':
-                    pass
-                elif entity['vitrage_category'] != 'ALARM':
-                    if entity['id'] not in now_entitylist:
-                        entity['graph_index'] += entity_num
-                    else:
-                        entity['graph_index'] += entity_num -1
+                    if rcaclient['links'][j]['target'] != now_cluster and \
+                                rcaclient['links'][j]['t_cha'] == True:
+                        if rcaclient['links'][j]['target'] < now_cluster:
+                            rcaclient['links'][j]['target'] += link_num
+                            rcaclient['links'][j]['t_cha'] = False
+                        else :
+                            rcaclient['links'][j]['target'] += (link_num-1)
+                            rcaclient['links'][j]['t_cha'] = False
 
-                if entity['id'] == 'nova':
-                    entity['name'] = meclist[rca_cnt] + '_nova'
-                    entity['id'] = meclist[rca_cnt] + '_nova'
+                ####### ADD RCA tree at First Tree
+                for entity in rcaclient['nodes']:
+                    if entity['vitrage_category'] == 'ALARM':
+                        pass
+                    elif entity['vitrage_category'] != 'ALARM':
+                        if entity['id'] not in now_entitylist:
+                            entity['graph_index'] += entity_num
+                        else:
+                            entity['graph_index'] += entity_num -1
 
-                if entity['id'] != 'OpenStack Cluster':
-                    first_client['nodes'].append(entity)
+                    if entity['id'] == 'nova':
+                        entity['name'] = meclist[mecclient.index(client)] + '_nova'
+                        entity['id'] = meclist[mecclient.index(client)] + '_nova'
 
-            for j in range(len(rcaclient['links'])):
-                del rcaclient['links'][j]['s_cha']
-                del rcaclient['links'][j]['t_cha']
+                    if entity['id'] != 'OpenStack Cluster':
+                        first_client['nodes'].append(entity)
 
-            for j in range(len(rcaclient['links'])):
-                first_client['links'].append(rcaclient['links'][j])
+                for j in range(len(rcaclient['links'])):
+                    del rcaclient['links'][j]['s_cha']
+                    del rcaclient['links'][j]['t_cha']
 
-            entity_num += (len(rcaclient['nodes'])-1)
-            if second == True:
-                link_num += (len(rcaclient['nodes'])-1)
-                print("&+******************* link_num",link_num)
-                second = False
-    rca_cnt = -1
+                for j in range(len(rcaclient['links'])):
+                    first_client['links'].append(rcaclient['links'][j])
+
+                entity_num += (len(rcaclient['nodes'])-1)
+                if second == True:
+                    link_num += (len(rcaclient['nodes'])-1)
+                    second = False
     return first_client
+
+
+def setalarmcount(request, all_tenants='false'):
+    # counts1 = vitrageclient(request).alarm.count(all_tenants=all_tenants)
+    # counts1['NA'] = counts1.get("N/A")
+
+    mecclient,meclist = mec_client(request)
+    severe = 0
+    critical = 0
+    ok = 0
+    warning = 0
+    na = 0
+    na2 = 0
+    client_first = True
+    counts1 = None
+
+    for client in mecclient:
+        rcaalarm = client.alarm.count(all_tenants=all_tenants)
+        if client_first :
+            counts1 = rcaalarm
+            client_first = False
+        severe += rcaalarm['SEVERE']
+        critical += rcaalarm['CRITICAL']
+        ok += rcaalarm['OK']
+        warning += rcaalarm['WARNING']
+        na += rcaalarm['N/A']
+    counts1['SEVERE'] = severe
+    counts1['CRITICAL'] = critical
+    counts1['OK'] = ok
+    counts1['WARNING'] = warning
+    counts1['N/A'] = na
+    counts1['NA'] = na
+    return counts1
+
+def topology(request, query=None, graph_type='tree', all_tenants='false',
+             root=None, limit=None):
+    LOG.info("--------- CALLING VITRAGE_CLIENT ---request %s", str(request))
+    LOG.info("--------- CALLING VITRAGE_CLIENT ---query %s", str(query))
+    LOG.info("------ CALLING VITRAGE_CLIENT --graph_type %s", str(graph_type))
+    LOG.info("---- CALLING VITRAGE_CLIENT --all_tenants %s", str(all_tenants))
+    LOG.info("--------- CALLING VITRAGE_CLIENT --------root %s", str(root))
+    LOG.info("--------- CALLING VITRAGE_CLIENT --------limit %s", str(limit))
+
+    rca_clients = getmecrca(request,query,graph_type,all_tenants,root,limit)
+    return rca_clients
 
 def alarms(request, vitrage_id='all', all_tenants='false'):
     return vitrageclient(request).alarm.list(vitrage_id=vitrage_id,
@@ -241,9 +275,12 @@ def alarms(request, vitrage_id='all', all_tenants='false'):
 
 
 def alarm_counts(request, all_tenants='false'):
-    counts = vitrageclient(request).alarm.count(all_tenants=all_tenants)
-    counts['NA'] = counts.get("N/A")
-    return counts
+    # counts1 = vitrageclient(request).alarm.count(all_tenants=all_tenants)
+    # counts1['NA'] = counts1.get("N/A")
+
+
+    counts1 = setalarmcount(request,all_tenants = all_tenants)
+    return counts1
 
 
 def rca(request, alarm_id, all_tenants='false'):
