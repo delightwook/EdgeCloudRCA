@@ -263,7 +263,7 @@ def getmecalarm(request, vitrage_id='all', all_tenants='false'):
             alarmlist.append(alarm)
     return alarmlist
 
-def getrca(request, alarm_id, all_tenants='false'):
+def getrca(request, alarm_id, all_tenants):
     mecclient,meclist = mec_client(request)
     rcatmp = None
 
@@ -278,6 +278,26 @@ def getrca(request, alarm_id, all_tenants='false'):
                 rcatmp = client.rca.get(alarm_id=alarm_id,
                                     all_tenants=all_tenants)
     return rcatmp
+
+def gettemplate(request, template_id):
+    mecclient,meclist = mec_client(request)
+    templatelist = []
+    templateshow = None
+    if template_id == 'all':
+        for client in mecclient:
+            template = client.template.list()
+            for t in template :
+                templatelist.append(t)
+        return templatelist
+    else:
+        for client in mecclient:
+            template = client.template.list()
+            for t in template:
+                if t['uuid'] == template_id:
+                    templateshow = client.template.show(template_id)
+    return templateshow
+
+
 
 
 
@@ -318,8 +338,11 @@ def rca(request, alarm_id, all_tenants='false'):
 
 def templates(request, template_id='all'):
     if template_id == 'all':
-        return vitrageclient(request).template.list()
-    return vitrageclient(request).template.show(template_id)
+        templatevalue = gettemplate(request, template_id='all')
+        # return vitrageclient(request).template.list()
+        return templatevalue
+    return gettemplate(request, template_id)
+    # return vitrageclient(request).template.show(template_id)
 
 
 

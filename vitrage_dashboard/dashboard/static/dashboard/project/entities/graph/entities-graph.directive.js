@@ -65,6 +65,8 @@ function hzEntitiesGraph() {
               .filter(function(d, i){ return this.classList.contains("node"); })
               .selectAll("circle");
 
+            console.log("^&^&^&^&^& allNodes",allNodes);
+
             //console.log('all nodes: ', allNodes.length);
 
             allNodes
