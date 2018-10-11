@@ -54,10 +54,10 @@ def mec_client(request):
     meclist = []
 
     setting = ConfigParser.ConfigParser()
-    setting.read('/opt/stack/mecsetting/setting.conf')
+    setting.read('/opt/stack/ecsetting/setting.conf')
     if setting.has_section('Default'):
-        if setting.has_option('Default', 'meclist'):
-            conf_actions = setting.get('Default', 'meclist').split(',')
+        if setting.has_option('Default', 'eclist'):
+            conf_actions = setting.get('Default', 'eclist').split(',')
             meclist = conf_actions
             for section in conf_actions:
                 if setting.has_section(section):

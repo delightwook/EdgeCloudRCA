@@ -379,7 +379,7 @@ function hzEntitiesGraph() {
                         if (severity) {
                             switch (severity.toLowerCase()) {
                                 case 'critical':
-                                    cls = 'red';
+                                    cls = 'pink';
                                     break;
                                 case 'severe':
                                     cls = 'orange';
