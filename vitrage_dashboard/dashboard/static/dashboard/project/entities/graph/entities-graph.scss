@@ -6,6 +6,7 @@ $vitrage_green: #87CE53;
 $vitrage_olive: #97A560;
 $vitrage_gray: #AEAEAE;
 $vitrage_pink: #FF00FF;
+$vitrage_hotblue: #00FFFF;
 $dark_gray: darkgray;
 
 .entities-graph {
@@ -82,6 +83,9 @@ $dark_gray: darkgray;
       }
       &.pink {
         stroke: $vitrage_pink;
+      }
+      &.hotblue {
+        stroke: $vitrage_hotblue;
       }
 
       &.orange  {
