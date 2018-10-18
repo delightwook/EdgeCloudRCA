@@ -34,6 +34,7 @@ from contrib import action_manager
 import ConfigParser
 import logging
 import copy
+import time
 LOG = logging.getLogger(__name__)
 
 
@@ -221,6 +222,10 @@ def getmecrca(request, query=None, graph_type='tree', all_tenants='false',
                 if second == True:
                     link_num += (len(rcaclient['nodes'])-1)
                     second = False
+    print("########### Link Data #############")
+    print(first_client['links'])
+    print("########### Node Data #############")
+    print(first_client['nodes'])
     return first_client
 
 
@@ -310,7 +315,13 @@ def topology(request, query=None, graph_type='tree', all_tenants='false',
     LOG.info("--------- CALLING VITRAGE_CLIENT --------root %s", str(root))
     LOG.info("--------- CALLING VITRAGE_CLIENT --------limit %s", str(limit))
 
+    start = time.time()
+    print(" START TIME ",start)
+
     rca_clients = getmecrca(request,query,graph_type,all_tenants,root,limit)
+    end = time.time()
+    print(" END TIME ", end)
+    print("ELAPSED ",start-end)
     return rca_clients
 
 def alarms(request, vitrage_id='all', all_tenants='false'):
