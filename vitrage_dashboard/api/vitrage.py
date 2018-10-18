@@ -219,9 +219,9 @@ def getmecrca(request, query=None, graph_type='tree', all_tenants='false',
                     first_client['links'].append(rcaclient['links'][j])
 
                 entity_num += (len(rcaclient['nodes'])-1)
-                if second == True:
-                    link_num += (len(rcaclient['nodes'])-1)
-                    second = False
+                # if second == True:
+                link_num += (len(rcaclient['nodes'])-1)
+                # second = False
     print("########### Link Data #############")
     print(first_client['links'])
     print("########### Node Data #############")
